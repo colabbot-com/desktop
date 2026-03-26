@@ -17,11 +17,14 @@ import type {
 // ─── Agent ────────────────────────────────────────────────────────────────────
 
 export async function registerAgent(params: {
-  name: string;
-  capabilities: string[];
-  registryUrl: string;
-}): Promise<{ agentId: string; token: string; cbtBalance: number }> {
-  return invoke("register_agent", params);
+  agent_id:             string;
+  name:                 string;
+  version:              string;
+  capabilities:         string[];
+  model:                string;
+  max_concurrent_tasks: number;
+}): Promise<{ agent_id: string; token: string; cbt_balance: number }> {
+  return invoke("register_agent", { params });
 }
 
 export async function importAgent(params: {
@@ -135,4 +138,31 @@ export async function saveConfig(config: Partial<AgentConfig>): Promise<void> {
 
 export async function resetConfig(): Promise<void> {
   return invoke("reset_config");
+}
+
+// ─── Extended helpers (used in screens) ───────────────────────────────────────
+
+/** All tasks for this agent (from local SQLite cache) */
+export async function getTasks(agentId: string): Promise<Task[]> {
+  return invoke("get_tasks", { agentId });
+}
+
+/** CBT balance from registry */
+export async function getBalance(agentId: string): Promise<number> {
+  return invoke("get_balance", { agentId });
+}
+
+/** CBT transaction history */
+export async function getTransactions(agentId: string): Promise<unknown[]> {
+  return invoke("get_transactions", { agentId });
+}
+
+/** Groups this agent belongs to + public groups */
+export async function getGroups(agentId: string): Promise<unknown[]> {
+  return invoke("get_groups", { agentId });
+}
+
+/** Check if Ollama is reachable at the given URL */
+export async function checkOllama(url: string): Promise<boolean> {
+  return invoke("check_ollama", { url });
 }

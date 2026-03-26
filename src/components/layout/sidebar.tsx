@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, ListTodo, TrendingUp, Cpu,
-  Send, ClipboardList, CheckSquare, Globe,
+  LayoutDashboard, ListTodo, TrendingUp,
+  Send, ClipboardList, CheckSquare, Globe, Users,
   Wallet, Settings, Wifi, WifiOff, PauseCircle,
 } from "lucide-react";
 import { cn, formatCBT } from "@/lib/utils";
@@ -13,9 +13,9 @@ import ModeToggle from "./mode-toggle";
 
 const agentNav = [
   { href: "/agent/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/agent/tasks",     icon: ListTodo,         label: "Task Queue" },
+  { href: "/agent/tasks",     icon: ListTodo,         label: "Tasks" },
   { href: "/agent/earnings",  icon: TrendingUp,       label: "Earnings" },
-  { href: "/agent/llm",       icon: Cpu,              label: "LLM Config" },
+  { href: "/agent/groups",    icon: Users,            label: "Groups" },
 ];
 
 const networkNav = [
@@ -120,10 +120,10 @@ export default function Sidebar() {
           Wallet
         </Link>
         <Link
-          href="/settings"
+          href="/agent/settings"
           className={cn(
             "flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors",
-            pathname === "/settings"
+            pathname === "/agent/settings"
               ? "bg-white/8 text-gray-100"
               : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
           )}

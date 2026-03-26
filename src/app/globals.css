@@ -35,3 +35,9 @@
   .bg-brand { background-color: var(--brand); }
   .border-brand { border-color: var(--brand); }
 }
+
+@layer components {
+  .input {
+    @apply w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[--brand];
+  }
+}
