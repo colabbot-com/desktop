@@ -161,10 +161,11 @@ pub struct RegisterPayload {
     pub agent_id: String,
     pub name: String,
     pub version: String,
-    pub endpoint: String,
+    pub endpoint: String,       // must start with https://
     pub capabilities: Vec<String>,
     pub model: String,
     pub max_concurrent_tasks: u32,
+    pub public_key: String,     // required by registry schema
 }
 
 #[derive(Debug, Deserialize)]

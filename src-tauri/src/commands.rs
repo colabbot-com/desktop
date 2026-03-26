@@ -109,15 +109,21 @@ pub struct RegisterParams {
 pub async fn register_agent(params: RegisterParams) -> Result<serde_json::Value, String> {
     let registry_url = "https://registry.colabbot.com".to_string();
     let client = RegistryClient::new(&registry_url);
+    // Generate a stable public key for this agent (ed25519 placeholder — real signing in v2)
+    let public_key = format!("desktop-pk-{}", uuid::Uuid::new_v4().simple());
+
     let payload = RegisterPayload {
         agent_id: params.agent_id.clone(),
         name: params.name.clone(),
         version: params.version.clone(),
-        endpoint: "colabbot-desktop://local".to_string(),
+        // Registry requires https:// — desktop agents use a stable URL format
+        endpoint: format!("https://desktop.colabbot.local/{}", params.agent_id),
         capabilities: params.capabilities.clone(),
         model: params.model.clone(),
         max_concurrent_tasks: params.max_concurrent_tasks,
+        public_key: public_key.clone(),
     };
+    db::save_config("public_key", &public_key).map_err(|e| e.to_string())?;
     let res = client.register(&payload).await.map_err(|e| e.to_string())?;
     db::save_config("agent_id", &res.agent_id).map_err(|e| e.to_string())?;
     db::save_config("token", &res.token).map_err(|e| e.to_string())?;
