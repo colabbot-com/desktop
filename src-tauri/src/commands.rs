@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use tauri::State;
 
 use crate::db;
 use crate::ollama;
@@ -277,9 +276,9 @@ pub async fn open_stripe_checkout(
     app: tauri::AppHandle,
     package_id: String,
 ) -> Result<(), String> {
-    use tauri_plugin_shell::ShellExt;
+    use tauri_plugin_opener::OpenerExt;
     let url = format!("https://colabbot.com/#buy-cbt?pkg={}", package_id);
-    app.shell().open(&url, None).map_err(|e| e.to_string())?;
+    app.opener().open_url(&url, None::<&str>).map_err(|e| e.to_string())?;
     Ok(())
 }
 
