@@ -92,35 +92,45 @@ pub struct NetworkStatsFE {
     pub cbt_minted_24h: f64,
 }
 
+// ── Register params struct (matches TypeScript side) ──────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct RegisterParams {
+    pub agent_id: String,
+    pub name: String,
+    pub version: String,
+    pub capabilities: Vec<String>,
+    pub model: String,
+    pub max_concurrent_tasks: u32,
+}
+
 // ── Agent commands ─────────────────────────────────────────────────────────────
 
 #[tauri::command]
-pub async fn register_agent(
-    name: String,
-    capabilities: Vec<String>,
-    registry_url: String,
-) -> Result<serde_json::Value, String> {
-    let agent_id = format!("desktop-{}", uuid::Uuid::new_v4().to_string().split('-').next().unwrap_or("unknown"));
+pub async fn register_agent(params: RegisterParams) -> Result<serde_json::Value, String> {
+    let registry_url = "https://registry.colabbot.com/v1".to_string();
     let client = RegistryClient::new(&registry_url);
     let payload = RegisterPayload {
-        agent_id: agent_id.clone(),
-        name: name.clone(),
-        version: env!("CARGO_PKG_VERSION").to_string(),
+        agent_id: params.agent_id.clone(),
+        name: params.name.clone(),
+        version: params.version.clone(),
         endpoint: "colabbot-desktop://local".to_string(),
-        capabilities: capabilities.clone(),
-        model: "local".to_string(),
-        max_concurrent_tasks: 3,
+        capabilities: params.capabilities.clone(),
+        model: params.model.clone(),
+        max_concurrent_tasks: params.max_concurrent_tasks,
     };
     let res = client.register(&payload).await.map_err(|e| e.to_string())?;
     db::save_config("agent_id", &res.agent_id).map_err(|e| e.to_string())?;
     db::save_config("token", &res.token).map_err(|e| e.to_string())?;
-    db::save_config("name", &name).map_err(|e| e.to_string())?;
+    db::save_config("name", &params.name).map_err(|e| e.to_string())?;
     db::save_config("registry_url", &registry_url).map_err(|e| e.to_string())?;
-    db::save_config("capabilities", &capabilities.join(",")).map_err(|e| e.to_string())?;
+    db::save_config("capabilities", &params.capabilities.join(",")).map_err(|e| e.to_string())?;
+    db::save_config("ollama_model", &params.model).map_err(|e| e.to_string())?;
+    db::save_config("max_concurrent_tasks", &params.max_concurrent_tasks.to_string()).map_err(|e| e.to_string())?;
     Ok(serde_json::json!({
-        "agentId": res.agent_id,
+        "agent_id": res.agent_id,
         "token": res.token,
-        "cbtBalance": res.cbt_balance
+        "cbt_balance": res.cbt_balance
     }))
 }
 
@@ -263,9 +273,13 @@ pub async fn get_wallet() -> Result<WalletFE, String> {
 }
 
 #[tauri::command]
-pub async fn open_stripe_checkout(package_id: String) -> Result<(), String> {
+pub async fn open_stripe_checkout(
+    app: tauri::AppHandle,
+    package_id: String,
+) -> Result<(), String> {
+    use tauri_plugin_shell::ShellExt;
     let url = format!("https://colabbot.com/#buy-cbt?pkg={}", package_id);
-    tauri_plugin_shell::open::open(&url, None::<&str>).map_err(|e| e.to_string())?;
+    app.shell().open(&url, None).map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -304,6 +318,49 @@ pub async fn save_llm_config(
         db::save_config("llm_api_key", &key).map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+// ── Extended commands (used by new screens) ────────────────────────────────────
+
+/// Test whether Ollama is reachable at the given URL
+#[tauri::command]
+pub async fn check_ollama(url: String) -> Result<bool, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let endpoint = format!("{}/api/tags", url.trim_end_matches('/'));
+    match client.get(&endpoint).send().await {
+        Ok(resp) => Ok(resp.status().is_success()),
+        Err(_)   => Ok(false),
+    }
+}
+
+/// Get all tasks for a given agent from local SQLite cache
+#[tauri::command]
+pub async fn get_tasks(_agent_id: String) -> Result<Vec<TaskFE>, String> {
+    db::get_tasks().map_err(|e| e.to_string())
+}
+
+/// Get CBT balance for an agent (reads from local cache, refreshes from registry)
+#[tauri::command]
+pub async fn get_balance(_agent_id: String) -> Result<f64, String> {
+    let txs = db::get_transactions().map_err(|e| e.to_string())?;
+    let balance = txs.iter().map(|t| t.amount).sum::<f64>().max(0.0);
+    Ok(balance)
+}
+
+/// Get CBT transaction history for an agent
+#[tauri::command]
+pub async fn get_transactions(_agent_id: String) -> Result<Vec<TransactionFE>, String> {
+    db::get_transactions().map_err(|e| e.to_string())
+}
+
+/// Get groups this agent belongs to (returns empty list until Groups API is implemented)
+#[tauri::command]
+pub async fn get_groups(_agent_id: String) -> Result<Vec<serde_json::Value>, String> {
+    // TODO: call registry /v1/groups?agent_id=... once Groups API is deployed
+    Ok(vec![])
 }
 
 // ── Network commands ───────────────────────────────────────────────────────────

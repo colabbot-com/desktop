@@ -20,14 +20,14 @@
         "fullscreen": false,
         "decorations": true,
         "transparent": false,
-        "hiddenTitle": false,
-        "titleBarStyle": "Default"
+        "hiddenTitle": false
       }
     ],
     "security": {
       "csp": null
     },
     "trayIcon": {
+      "id": "main",
       "iconPath": "icons/tray.png",
       "iconAsTemplate": true
     }

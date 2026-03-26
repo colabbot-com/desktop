@@ -52,6 +52,12 @@ pub fn run() {
             // Network
             commands::get_network_agents,
             commands::get_network_stats,
+            // Extended (new screens)
+            commands::check_ollama,
+            commands::get_tasks,
+            commands::get_balance,
+            commands::get_transactions,
+            commands::get_groups,
         ])
         .run(tauri::generate_context!())
         .expect("error while running ColabBot");
