@@ -107,7 +107,7 @@ pub struct RegisterParams {
 
 #[tauri::command]
 pub async fn register_agent(params: RegisterParams) -> Result<serde_json::Value, String> {
-    let registry_url = "https://registry.colabbot.com/v1".to_string();
+    let registry_url = "https://registry.colabbot.com".to_string();
     let client = RegistryClient::new(&registry_url);
     let payload = RegisterPayload {
         agent_id: params.agent_id.clone(),
@@ -161,7 +161,7 @@ pub async fn get_config() -> Result<Option<AgentConfigFE>, String> {
             .filter(|s| !s.is_empty())
             .collect(),
         registry_url: db::get_config("registry_url").unwrap_or_default()
-            .unwrap_or_else(|| "https://registry.colabbot.com".to_string()),
+            .unwrap_or_else(|| "https://registry.colabbot.com".to_string()), // no /v1 — RegistryClient appends it
         llm_provider: db::get_config("llm_provider").unwrap_or_default()
             .unwrap_or_else(|| "ollama".to_string()),
         llm_model: db::get_config("llm_model").unwrap_or_default()

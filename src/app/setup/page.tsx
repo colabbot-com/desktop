@@ -134,7 +134,7 @@ export default function SetupPage() {
         agent_id: result.agent_id,
         agent_name: agentName.trim(),
         auth_token: result.token,
-        registry_url: "https://registry.colabbot.com/v1",
+        registry_url: "https://registry.colabbot.com",
         ollama_url: ollamaUrl,
         ollama_model: ollamaModel,
         capabilities: selectedCaps,
