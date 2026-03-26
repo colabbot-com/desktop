@@ -7,6 +7,10 @@ use crate::commands::{TaskFE, TransactionFE};
 static DB_PATH: OnceLock<PathBuf> = OnceLock::new();
 
 pub fn init(path: PathBuf) -> Result<()> {
+    // Ensure the parent directory exists before SQLite tries to open the file
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
     DB_PATH.set(path.clone()).ok();
     let conn = Connection::open(&path)?;
     conn.execute_batch("
