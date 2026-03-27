@@ -8,6 +8,7 @@ import type {
   AgentConfig,
   AgentStatus,
   Task,
+  Transaction,
   OllamaModel,
   NetworkAgent,
   NetworkStats,
@@ -56,7 +57,31 @@ export async function pauseDaemon(): Promise<void> {
 // ─── Tasks ────────────────────────────────────────────────────────────────────
 
 export async function getTaskQueue(): Promise<Task[]> {
-  return invoke("get_task_queue");
+  const tasks = await invoke<Array<{
+    task_id: string;
+    direction: "inbound" | "outbound";
+    status: string;
+    capability: string;
+    prompt: string;
+    result?: string | null;
+    reward_cbt?: number;
+    quality_score?: number | null;
+    created_at: string;
+    updated_at: string;
+  }>>("get_task_queue");
+
+  return tasks.map((task) => ({
+    taskId: task.task_id,
+    direction: task.direction,
+    status: task.status as Task["status"],
+    capability: task.capability as Task["capability"],
+    prompt: task.prompt,
+    result: task.result ?? undefined,
+    rewardCbt: task.reward_cbt ?? 0,
+    qualityScore: task.quality_score ?? undefined,
+    createdAt: task.created_at,
+    updatedAt: task.updated_at,
+  }));
 }
 
 export async function postTask(params: {
@@ -85,7 +110,34 @@ export async function disputeTask(params: {
 // ─── Wallet ───────────────────────────────────────────────────────────────────
 
 export async function getWallet(): Promise<WalletState> {
-  return invoke("get_wallet");
+  const wallet = await invoke<{
+    balance?: number;
+    earned_today?: number;
+    earned_total?: number;
+    transactions?: Array<{
+      id: number;
+      type?: string;
+      type_?: string;
+      amount?: number;
+      task_id?: string | null;
+      note?: string | null;
+      created_at?: string;
+    }>;
+  }>("get_wallet");
+
+  return {
+    balance: wallet.balance ?? 0,
+    earnedToday: wallet.earned_today ?? 0,
+    earnedTotal: wallet.earned_total ?? 0,
+    transactions: (wallet.transactions ?? []).map((tx) => ({
+      id: tx.id,
+      type: (tx.type ?? tx.type_ ?? "earned") as WalletState["transactions"][number]["type"],
+      amount: tx.amount ?? 0,
+      taskId: tx.task_id ?? undefined,
+      note: tx.note ?? undefined,
+      createdAt: tx.created_at ?? new Date(0).toISOString(),
+    })),
+  };
 }
 
 export async function openStripeCheckout(packageId: string): Promise<void> {
@@ -129,11 +181,45 @@ export async function getNetworkStats(): Promise<NetworkStats> {
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 export async function getConfig(): Promise<AgentConfig | null> {
-  return invoke("get_config");
+  const config = await invoke<{
+    agent_id: string;
+    name: string;
+    token: string;
+    capabilities: string[];
+    registry_url: string;
+    llm_provider: AgentConfig["llmProvider"];
+    llm_model: string;
+    max_concurrent_tasks: number;
+  } | null>("get_config");
+
+  if (!config) return null;
+
+  return {
+    agentId: config.agent_id,
+    name: config.name,
+    token: config.token,
+    capabilities: config.capabilities as AgentConfig["capabilities"],
+    registryUrl: config.registry_url,
+    llmProvider: config.llm_provider,
+    llmModel: config.llm_model,
+    maxConcurrentTasks: config.max_concurrent_tasks,
+  };
 }
 
 export async function saveConfig(config: Partial<AgentConfig>): Promise<void> {
-  return invoke("save_config", { config });
+  return invoke("save_config", {
+    config: {
+      name: config.name,
+      agent_id: config.agentId,
+      token: config.token,
+      capabilities: config.capabilities,
+      registry_url: config.registryUrl,
+      llm_provider: config.llmProvider,
+      llm_model: config.llmModel,
+      llm_endpoint: config.llmEndpoint,
+      max_concurrent_tasks: config.maxConcurrentTasks,
+    },
+  });
 }
 
 export async function resetConfig(): Promise<void> {
@@ -144,7 +230,31 @@ export async function resetConfig(): Promise<void> {
 
 /** All tasks for this agent (from local SQLite cache) */
 export async function getTasks(agentId: string): Promise<Task[]> {
-  return invoke("get_tasks", { agentId });
+  const tasks = await invoke<Array<{
+    task_id: string;
+    direction: "inbound" | "outbound";
+    status: string;
+    capability: string;
+    prompt: string;
+    result?: string | null;
+    reward_cbt?: number;
+    quality_score?: number | null;
+    created_at: string;
+    updated_at: string;
+  }>>("get_tasks", { agentId });
+
+  return tasks.map((task) => ({
+    taskId: task.task_id,
+    direction: task.direction,
+    status: task.status as Task["status"],
+    capability: task.capability as Task["capability"],
+    prompt: task.prompt,
+    result: task.result ?? undefined,
+    rewardCbt: task.reward_cbt ?? 0,
+    qualityScore: task.quality_score ?? undefined,
+    createdAt: task.created_at,
+    updatedAt: task.updated_at,
+  }));
 }
 
 /** CBT balance from registry */
@@ -153,8 +263,25 @@ export async function getBalance(agentId: string): Promise<number> {
 }
 
 /** CBT transaction history */
-export async function getTransactions(agentId: string): Promise<unknown[]> {
-  return invoke("get_transactions", { agentId });
+export async function getTransactions(agentId: string): Promise<Transaction[]> {
+  const transactions = await invoke<Array<{
+    id: number;
+    type?: string;
+    type_?: string;
+    amount?: number;
+    task_id?: string | null;
+    note?: string | null;
+    created_at?: string;
+  }>>("get_transactions", { agentId });
+
+  return transactions.map((tx) => ({
+    id: tx.id,
+    type: (tx.type ?? tx.type_ ?? "earned") as Transaction["type"],
+    amount: tx.amount ?? 0,
+    taskId: tx.task_id ?? undefined,
+    note: tx.note ?? undefined,
+    createdAt: tx.created_at ?? new Date(0).toISOString(),
+  }));
 }
 
 /** Groups this agent belongs to + public groups */

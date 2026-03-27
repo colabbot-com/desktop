@@ -1,22 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Clock3, Filter, Inbox } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { getTasks } from "@/lib/tauri";
-import { cn, statusColor, formatCBT } from "@/lib/utils";
+import { cn, formatCBT, statusColor } from "@/lib/utils";
 import type { Task } from "@/types/colabbot";
 
 export default function TasksPage() {
   const { agentConfig } = useAppStore();
-  const [tasks, setTasks]   = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter]   = useState<"all" | "active" | "completed">("all");
+  const [filter, setFilter] = useState<"all" | "active" | "completed">("all");
 
   useEffect(() => {
     async function load() {
       if (!agentConfig) return;
+
       try {
-        const result = await getTasks(agentConfig.agent_id);
+        const result = await getTasks(agentConfig.agentId);
         setTasks(result);
       } catch {
         // ignore in dev
@@ -24,114 +26,131 @@ export default function TasksPage() {
         setLoading(false);
       }
     }
+
     load();
     const interval = setInterval(load, 10_000);
     return () => clearInterval(interval);
   }, [agentConfig]);
 
-  const filtered = tasks.filter(t => {
-    if (filter === "active")    return ["assigned", "working"].includes(t.status);
-    if (filter === "completed") return ["completed", "rewarded"].includes(t.status);
+  const filtered = tasks.filter((task) => {
+    if (filter === "active") return ["assigned", "in_progress"].includes(task.status);
+    if (filter === "completed") return task.status === "completed";
     return true;
   });
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+    <div className="space-y-8">
+      <section className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-white text-xl font-semibold">Tasks</h1>
-          <p className="text-gray-500 text-sm mt-0.5">
-            {tasks.length} total · {tasks.filter(t => t.status === "working").length} active
+          <p className="eyebrow mb-2">Task Queue</p>
+          <h1 className="page-title">Incoming work</h1>
+          <p className="page-copy mt-2 max-w-2xl">
+            Alle der Registry bekannten Aufgaben an einem Ort. Der Fokus liegt auf Lesbarkeit:
+            klare Filter, klare Reward-Anzeige und kein UI-Lärm.
           </p>
         </div>
-        {/* Filter tabs */}
-        <div className="flex gap-1 bg-gray-900 rounded-xl p-1 border border-gray-800">
-          {(["all", "active", "completed"] as const).map(f => (
+
+        <div className="panel flex items-center gap-2 p-2">
+          <div className="flex items-center gap-2 px-3 text-xs uppercase tracking-[0.18em] text-gray-500">
+            <Filter size={13} />
+            Filter
+          </div>
+          {(["all", "active", "completed"] as const).map((entry) => (
             <button
-              key={f}
-              onClick={() => setFilter(f)}
+              key={entry}
+              onClick={() => setFilter(entry)}
               className={cn(
-                "px-3 py-1.5 rounded-lg text-xs font-medium transition capitalize",
-                filter === f
-                  ? "bg-gray-700 text-white"
-                  : "text-gray-500 hover:text-gray-300"
+                "rounded-2xl px-4 py-2 text-sm font-medium capitalize transition",
+                filter === entry
+                  ? "bg-brand text-black"
+                  : "text-gray-400 hover:bg-white/5 hover:text-white"
               )}
             >
-              {f}
+              {entry}
             </button>
           ))}
         </div>
-      </div>
+      </section>
 
-      {/* Task list */}
-      {loading ? (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-gray-600 text-sm">Loading tasks…</div>
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center">
-          <div className="w-12 h-12 rounded-2xl bg-gray-800 flex items-center justify-center text-2xl">⚡</div>
-          <div className="text-gray-400 text-sm">
-            {filter === "active" ? "No active tasks right now." : "No tasks yet."}
+      <section className="grid gap-4 md:grid-cols-3">
+        <SummaryTile label="Total" value={`${tasks.length}`} />
+        <SummaryTile label="Active" value={`${tasks.filter((task) => ["assigned", "in_progress"].includes(task.status)).length}`} />
+        <SummaryTile label="Completed" value={`${tasks.filter((task) => task.status === "completed").length}`} />
+      </section>
+
+      <section className="panel p-6">
+        {loading ? (
+          <div className="py-16 text-center text-sm text-gray-500">Loading task queue…</div>
+        ) : filtered.length === 0 ? (
+          <div className="py-16 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-3xl bg-brand/10 text-brand">
+              <Inbox size={20} />
+            </div>
+            <p className="text-sm font-medium text-white">
+              {filter === "active" ? "Keine aktiven Tasks" : "Noch keine Tasks vorhanden"}
+            </p>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-500">
+              Sobald der Registry-Client neue Arbeit zuteilt oder lokale Historie vorhanden ist, erscheinen die
+              Eintraege hier in chronologischer Form.
+            </p>
           </div>
-          <div className="text-gray-600 text-xs">
-            Tasks will appear here as the network routes work to your agent.
+        ) : (
+          <div className="space-y-3">
+            {filtered.map((task) => (
+              <TaskCard key={task.taskId} task={task} />
+            ))}
           </div>
-        </div>
-      ) : (
-        <div className="space-y-2 overflow-y-auto flex-1 pr-1">
-          {filtered.map(task => (
-            <TaskCard key={task.task_id} task={task} />
-          ))}
-        </div>
-      )}
+        )}
+      </section>
+    </div>
+  );
+}
+
+function SummaryTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="stat-tile">
+      <p className="eyebrow">{label}</p>
+      <p className="mt-3 text-3xl font-semibold text-white">{value}</p>
     </div>
   );
 }
 
 function TaskCard({ task }: { task: Task }) {
   const [expanded, setExpanded] = useState(false);
-  const color = statusColor(task.status);
 
   return (
     <button
-      className="w-full text-left bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-xl p-4 transition"
-      onClick={() => setExpanded(e => !e)}
+      onClick={() => setExpanded((value) => !value)}
+      className="w-full rounded-[1.5rem] border border-white/8 bg-black/10 p-5 text-left transition hover:border-white/12 hover:bg-white/[0.035]"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span
-              className={cn("inline-block w-2 h-2 rounded-full flex-shrink-0", color.dot)}
-            />
-            <span className="text-gray-300 text-sm font-medium truncate">
-              {task.type}
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-brand/30 bg-brand/10 px-2.5 py-1 text-[11px] font-medium text-brand">
+              {task.capability}
             </span>
-            <span className="text-gray-600 text-xs font-mono">#{task.task_id.slice(-6)}</span>
+            <span className={cn("rounded-full border border-current px-2.5 py-1 text-[11px] font-medium", statusColor(task.status))}>
+              {task.status.replace("_", " ")}
+            </span>
+            <span className="text-xs font-mono text-gray-500">#{task.taskId.slice(-6)}</span>
           </div>
-          {task.input?.prompt && (
-            <p className={cn(
-              "text-gray-500 text-xs leading-relaxed",
-              !expanded && "line-clamp-2"
-            )}>
-              {task.input.prompt}
-            </p>
-          )}
-          {expanded && task.output?.content && (
-            <div className="mt-3 bg-gray-800 rounded-lg p-3">
-              <div className="text-gray-500 text-[10px] mb-1.5 font-mono uppercase tracking-wide">Result</div>
-              <p className="text-gray-300 text-xs leading-relaxed line-clamp-6">{task.output.content}</p>
+
+          <p className={cn("text-sm leading-6 text-gray-200", !expanded && "line-clamp-2")}>{task.prompt}</p>
+
+          {expanded && task.result && (
+            <div className="mt-4 rounded-2xl border border-white/8 bg-black/20 p-4">
+              <p className="eyebrow mb-2">Result</p>
+              <p className="text-sm leading-6 text-gray-300">{task.result}</p>
             </div>
           )}
         </div>
-        <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-          <span className={cn("text-[11px] font-medium px-2 py-0.5 rounded-full border", color.badge)}>
-            {task.status}
-          </span>
-          {task.reward_cbt && (
-            <span className="text-brand text-xs font-mono">{formatCBT(task.reward_cbt)} CBT</span>
-          )}
+
+        <div className="min-w-[9rem] text-right">
+          <p className="text-lg font-semibold text-brand">{formatCBT(task.rewardCbt)}</p>
+          <div className="mt-2 inline-flex items-center gap-2 text-xs text-gray-500">
+            <Clock3 size={12} />
+            {new Date(task.updatedAt).toLocaleString()}
+          </div>
         </div>
       </div>
     </button>

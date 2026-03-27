@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAppStore } from "@/lib/store";
 import { checkOllama, registerAgent, saveConfig } from "@/lib/tauri";
 import { cn } from "@/lib/utils";
+import type { Capability } from "@/types/colabbot";
 
 // ─── Step definitions ────────────────────────────────────────────────────────
 
@@ -13,7 +14,7 @@ const STEPS: Step[] = ["welcome", "ollama", "agent", "done"];
 
 // ─── Capability options ───────────────────────────────────────────────────────
 
-const CAPABILITIES = [
+const CAPABILITIES: Array<{ id: Capability; label: string; desc: string }> = [
   { id: "text/research",     label: "Research",     desc: "Web research, summarization" },
   { id: "text/writing",      label: "Writing",       desc: "Long-form content generation" },
   { id: "text/analysis",     label: "Analysis",      desc: "Document & data analysis" },
@@ -90,7 +91,7 @@ export default function SetupPage() {
   // Step: agent
   const [agentName,   setAgentName]   = useState("");
   const [maxTasks,    setMaxTasks]    = useState(2);
-  const [selectedCaps, setSelectedCaps] = useState<string[]>(["text/research"]);
+  const [selectedCaps, setSelectedCaps] = useState<Capability[]>(["text/research"]);
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 
@@ -109,7 +110,7 @@ export default function SetupPage() {
     }
   }
 
-  function toggleCap(id: string) {
+  function toggleCap(id: Capability) {
     setSelectedCaps(prev =>
       prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
     );
@@ -131,14 +132,15 @@ export default function SetupPage() {
         max_concurrent_tasks: maxTasks,
       });
       const config = {
-        agent_id: result.agent_id,
-        agent_name: agentName.trim(),
-        auth_token: result.token,
-        registry_url: "https://registry.colabbot.com",
-        ollama_url: ollamaUrl,
-        ollama_model: ollamaModel,
+        agentId: result.agent_id,
+        name: agentName.trim(),
+        token: result.token,
+        registryUrl: "https://registry.colabbot.com",
+        llmProvider: "ollama" as const,
+        llmEndpoint: ollamaUrl,
+        llmModel: ollamaModel,
         capabilities: selectedCaps,
-        max_concurrent_tasks: maxTasks,
+        maxConcurrentTasks: maxTasks,
       };
       await saveConfig(config);
       setAgentConfig(config);

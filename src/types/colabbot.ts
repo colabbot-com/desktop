@@ -9,6 +9,8 @@ export interface AgentConfig {
   capabilities: Capability[];
   registryUrl: string;
   llmProvider: LLMProvider;
+  llmModel: string;
+  llmEndpoint?: string;
   maxConcurrentTasks: number;
 }
 

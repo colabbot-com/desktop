@@ -5,9 +5,17 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCBT(amount: number): string {
-  if (amount >= 1000) return `${(amount / 1000).toFixed(1)}k CBT`;
-  return `${amount.toFixed(0)} CBT`;
+export function formatCBT(amount?: number | null): string {
+  const value = typeof amount === "number" && Number.isFinite(amount) ? amount : 0;
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}k CBT`;
+  return `${value.toFixed(0)} CBT`;
+}
+
+export function formatSignedCBT(amount?: number | null): string {
+  const value = typeof amount === "number" && Number.isFinite(amount) ? amount : 0;
+  const formatted = formatCBT(Math.abs(value));
+  if (value < 0) return `-${formatted}`;
+  return formatted;
 }
 
 export function formatRelativeTime(isoString: string): string {

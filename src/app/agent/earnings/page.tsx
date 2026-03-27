@@ -1,31 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ArrowUpRight, Coins, Receipt } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { getBalance, getTransactions } from "@/lib/tauri";
 import { formatCBT } from "@/lib/utils";
-
-interface Transaction {
-  id:         string;
-  type:       "earned" | "spent" | "topup";
-  amount:     number;
-  description: string;
-  task_id?:   string;
-  created_at: string;
-}
+import type { Transaction } from "@/types/colabbot";
 
 export default function EarningsPage() {
   const { agentConfig } = useAppStore();
-  const [balance, setBalance]   = useState<number | null>(null);
-  const [txns,    setTxns]      = useState<Transaction[]>([]);
-  const [loading, setLoading]   = useState(true);
+  const [balance, setBalance] = useState<number | null>(null);
+  const [txns, setTxns] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       if (!agentConfig) return;
       try {
-        const bal  = await getBalance(agentConfig.agent_id);
-        const hist = await getTransactions(agentConfig.agent_id);
+        const [bal, hist] = await Promise.all([
+          getBalance(agentConfig.agentId),
+          getTransactions(agentConfig.agentId),
+        ]);
         setBalance(bal);
         setTxns(hist);
       } catch {
@@ -34,117 +29,106 @@ export default function EarningsPage() {
         setLoading(false);
       }
     }
+
     load();
   }, [agentConfig]);
 
-  const earned = txns.filter(t => t.type === "earned").reduce((s, t) => s + t.amount, 0);
-  const spent  = txns.filter(t => t.type === "spent" ).reduce((s, t) => s + t.amount, 0);
+  const earned = txns.filter((tx) => tx.type === "earned").reduce((sum, tx) => sum + tx.amount, 0);
+  const spent = txns.filter((tx) => tx.type === "spent").reduce((sum, tx) => sum + tx.amount, 0);
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="mb-6">
-        <h1 className="text-white text-xl font-semibold">Earnings</h1>
-        <p className="text-gray-500 text-sm mt-0.5">Your ColabToken balance and history</p>
-      </div>
-
-      {/* Stats row */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        <StatCard
-          label="Balance"
-          value={balance !== null ? formatCBT(balance) : "—"}
-          unit="CBT"
-          highlight
-          loading={loading}
-        />
-        <StatCard
-          label="Total earned"
-          value={formatCBT(earned)}
-          unit="CBT"
-          loading={loading}
-        />
-        <StatCard
-          label="Total spent"
-          value={formatCBT(spent)}
-          unit="CBT"
-          loading={loading}
-        />
-      </div>
-
-      {/* Top up */}
-      <div className="bg-gradient-to-r from-brand/10 to-brand/5 border border-brand/20 rounded-xl p-4 mb-6 flex items-center justify-between">
+    <div className="space-y-8">
+      <section className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <div className="text-white text-sm font-medium">Top up CBT</div>
-          <div className="text-gray-400 text-xs mt-0.5">
-            Support the network as a Founder Backer — get CBT at ~70% off.
-          </div>
+          <p className="eyebrow mb-2">Wallet</p>
+          <h1 className="page-title">CBT earnings</h1>
+          <p className="page-copy mt-2 max-w-2xl">
+            Saldo, kumulierte Einnahmen und Buchungen in einer einzigen Ansicht. Keine Marketing-Karten,
+            sondern direkt die Zahlen, die man im Betrieb braucht.
+          </p>
         </div>
+
         <a
           href="https://colabbot.com/#buy-cbt"
           target="_blank"
           rel="noreferrer"
-          className="flex-shrink-0 bg-brand hover:opacity-90 transition text-white text-xs font-medium px-4 py-2 rounded-lg"
+          className="panel inline-flex items-center gap-2 px-4 py-3 text-sm font-medium text-brand transition hover:text-white"
         >
-          Buy CBT →
+          Founder Backer Packs
+          <ArrowUpRight size={14} />
         </a>
-      </div>
+      </section>
 
-      {/* Transaction history */}
-      <div className="flex-1 overflow-y-auto">
-        <h2 className="text-gray-500 text-xs uppercase tracking-wide mb-3">Transaction History</h2>
+      <section className="grid gap-4 lg:grid-cols-3">
+        <WalletCard label="Balance" value={balance !== null ? formatCBT(balance) : "—"} loading={loading} accent />
+        <WalletCard label="Total earned" value={formatCBT(earned)} loading={loading} />
+        <WalletCard label="Total spent" value={formatCBT(spent)} loading={loading} />
+      </section>
+
+      <section className="panel p-6">
+        <div className="mb-5 flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand/10 text-brand">
+            <Receipt size={18} />
+          </div>
+          <div>
+            <p className="eyebrow mb-1">Ledger</p>
+            <h2 className="text-xl font-semibold text-white">Transaction history</h2>
+          </div>
+        </div>
+
         {loading ? (
-          <div className="text-gray-600 text-sm text-center py-8">Loading…</div>
+          <div className="py-16 text-center text-sm text-gray-500">Loading wallet…</div>
         ) : txns.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="text-3xl mb-3">🪙</div>
-            <div className="text-gray-500 text-sm">No transactions yet.</div>
-            <div className="text-gray-600 text-xs mt-1">
-              Complete tasks to start earning CBT.
+          <div className="py-16 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-3xl bg-brand/10 text-brand">
+              <Coins size={20} />
             </div>
+            <p className="text-sm font-medium text-white">Noch keine Buchungen</p>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-500">
+              Sobald Aufgaben verifiziert sind oder Top-ups eingehen, wird hier die lokale Wallet-Historie angezeigt.
+            </p>
           </div>
         ) : (
-          <div className="space-y-1.5">
-            {txns.map(tx => (
-              <div key={tx.id} className="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <div className="text-lg">
-                    {tx.type === "earned" ? "⬆" : tx.type === "spent" ? "⬇" : "💳"}
-                  </div>
-                  <div>
-                    <div className="text-gray-300 text-xs font-medium">{tx.description}</div>
-                    <div className="text-gray-600 text-[10px] font-mono mt-0.5">
-                      {new Date(tx.created_at).toLocaleString()}
-                    </div>
-                  </div>
+          <div className="space-y-3">
+            {txns.map((tx) => (
+              <div key={tx.id} className="flex items-center justify-between rounded-[1.5rem] border border-white/8 bg-black/10 px-5 py-4">
+                <div>
+                  <p className="text-sm font-medium text-white">{tx.note ?? `${tx.type} transaction`}</p>
+                  <p className="mt-1 text-xs text-gray-500">{new Date(tx.createdAt).toLocaleString()}</p>
                 </div>
-                <div className={tx.type === "earned" || tx.type === "topup"
-                  ? "text-green-400 text-sm font-mono"
-                  : "text-red-400 text-sm font-mono"
-                }>
-                  {tx.type === "spent" ? "−" : "+"}{formatCBT(tx.amount)} CBT
+                <div className={tx.type === "spent" ? "text-sm font-semibold text-red-300" : "text-sm font-semibold text-brand"}>
+                  {tx.type === "spent" ? "-" : "+"}
+                  {formatCBT(tx.amount)}
                 </div>
               </div>
             ))}
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }
 
-function StatCard({
-  label, value, unit, highlight, loading
+function WalletCard({
+  label,
+  value,
+  loading,
+  accent,
 }: {
-  label: string; value: string; unit: string; highlight?: boolean; loading?: boolean;
+  label: string;
+  value: string;
+  loading: boolean;
+  accent?: boolean;
 }) {
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-      <div className="text-gray-500 text-xs mb-2">{label}</div>
+    <div className="stat-tile">
+      <p className="eyebrow">{label}</p>
       {loading ? (
-        <div className="h-6 w-16 bg-gray-800 rounded animate-pulse" />
+        <div className="mt-4 h-8 w-28 animate-pulse rounded-xl bg-white/8" />
       ) : (
-        <div className={highlight ? "text-brand text-lg font-mono font-semibold" : "text-white text-lg font-mono font-semibold"}>
-          {value} <span className="text-gray-600 text-xs">{unit}</span>
-        </div>
+        <p className={accent ? "mt-4 text-3xl font-semibold text-brand" : "mt-4 text-3xl font-semibold text-white"}>
+          {value}
+        </p>
       )}
     </div>
   );

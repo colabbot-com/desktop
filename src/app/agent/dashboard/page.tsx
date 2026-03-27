@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
-import { Wifi, TrendingUp, CheckCircle, Star, AlertCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2, Sparkles, Star, TrendingUp, Wifi } from "lucide-react";
 import { useAppStore } from "@/lib/store";
-import { getWallet, getTaskQueue, getAgentStatus, startDaemon } from "@/lib/tauri";
+import { getAgentStatus, getTaskQueue, getWallet, startDaemon } from "@/lib/tauri";
 import { formatCBT, formatRelativeTime, statusColor } from "@/lib/utils";
-import Sidebar from "@/components/layout/sidebar";
 
 export default function AgentDashboard() {
   const { agentConfig, agentStatus, wallet, tasks, setWallet, setTasks, setAgentStatus } = useAppStore();
@@ -19,94 +18,190 @@ export default function AgentDashboard() {
         setAgentStatus(s);
         if (s === "offline") await startDaemon();
       } catch {
-        // dev mode — use mock data
+        // dev mode fallback
       }
     }
+
     load();
     const interval = setInterval(load, 10_000);
     return () => clearInterval(interval);
-  }, [setWallet, setTasks, setAgentStatus]);
+  }, [setAgentStatus, setTasks, setWallet]);
 
-  const activeTasks = tasks.filter(t => t.direction === "inbound" && ["assigned", "in_progress"].includes(t.status));
-  const completedToday = tasks.filter(t => t.direction === "inbound" && t.status === "completed").length;
+  const activeTasks = tasks.filter((task) => task.direction === "inbound" && ["assigned", "in_progress"].includes(task.status));
+  const completedToday = tasks.filter((task) => task.direction === "inbound" && task.status === "completed").length;
+  const upcomingTasks = activeTasks.slice(0, 4);
 
   return (
-    <div className="flex h-screen">
-      <Sidebar />
-      <main className="flex-1 overflow-y-auto p-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+    <div className="space-y-8">
+      <section className="panel-strong overflow-hidden p-8">
+        <div className="grid gap-8 lg:grid-cols-[1.35fr_0.9fr]">
           <div>
-            <h1 className="text-lg font-semibold text-gray-100">{agentConfig?.name ?? "My Agent"}</h1>
-            <p className="text-sm text-gray-500 font-mono">{agentConfig?.agentId ?? "—"}</p>
-          </div>
-          <div className={`flex items-center gap-1.5 text-sm font-medium ${statusColor(agentStatus)}`}>
-            <Wifi size={14} />
-            <span className="capitalize">{agentStatus}</span>
-          </div>
-        </div>
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-4 gap-3 mb-6">
-          {[
-            { label: "Active Tasks", value: activeTasks.length, icon: AlertCircle, color: "text-yellow-400" },
-            { label: "Done Today",   value: completedToday,      icon: CheckCircle, color: "text-brand" },
-            { label: "Earned Today", value: formatCBT(wallet.earnedToday), icon: TrendingUp, color: "text-brand" },
-            { label: "Reputation",   value: "82",                icon: Star,        color: "text-yellow-400" },
-          ].map(({ label, value, icon: Icon, color }) => (
-            <div key={label} className="bg-white/4 rounded-xl p-4 border border-white/5">
-              <div className="flex items-center gap-2 mb-2">
-                <Icon size={14} className={color} />
-                <span className="text-xs text-gray-500">{label}</span>
+            <p className="eyebrow mb-3">Agent Overview</p>
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <h1 className="page-title">{agentConfig?.name ?? "My Agent"}</h1>
+              <div className={`pill ${statusColor(agentStatus)}`}>
+                <Wifi size={12} />
+                {agentStatus}
               </div>
-              <p className="text-xl font-semibold text-gray-100">{value}</p>
             </div>
-          ))}
-        </div>
+            <p className="page-copy max-w-2xl">
+              Dein Desktop-Client ist die operative Ansicht fuer einen einzelnen Worker-Agenten:
+              aktuelle Last, Einnahmen, Warteschlange und lokale Modellkonfiguration an einem Ort.
+            </p>
 
-        {/* Active Tasks */}
-        <div className="mb-6">
-          <h2 className="text-sm font-medium text-gray-400 mb-3">Active Tasks</h2>
-          {activeTasks.length === 0 ? (
-            <div className="bg-white/4 rounded-xl border border-white/5 p-6 text-center text-gray-500 text-sm">
-              No active tasks — your agent is ready and polling for work.
+            <div className="mt-6 flex flex-wrap gap-3">
+              <div className="pill">Agent ID: {agentConfig?.agentId?.slice(0, 12) ?? "not registered"}</div>
+              <div className="pill">Model: {agentConfig?.llmModel ?? "llama3"}</div>
+              <div className="pill">{agentConfig?.capabilities.length ?? 0} capabilities</div>
+            </div>
+          </div>
+
+          <div className="rounded-[1.75rem] border border-white/8 bg-black/20 p-5">
+            <p className="eyebrow mb-3">Wallet Snapshot</p>
+            <p className="text-4xl font-semibold tracking-tight text-brand">{formatCBT(wallet.balance)}</p>
+            <p className="mt-2 text-sm text-gray-500">Total earned: {formatCBT(wallet.earnedTotal)}</p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <MiniMetric label="Today" value={formatCBT(wallet.earnedToday)} />
+              <MiniMetric label="Completed" value={`${completedToday}`} />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-4">
+        <MetricTile
+          label="Active Tasks"
+          value={`${activeTasks.length}`}
+          detail="Open work currently assigned to this agent"
+          icon={<AlertCircle size={16} className="text-amber-300" />}
+        />
+        <MetricTile
+          label="Done Today"
+          value={`${completedToday}`}
+          detail="Verified task completions since local midnight"
+          icon={<CheckCircle2 size={16} className="text-brand" />}
+        />
+        <MetricTile
+          label="Earned Today"
+          value={formatCBT(wallet.earnedToday)}
+          detail="Net CBT credited in the current day"
+          icon={<TrendingUp size={16} className="text-sky-300" />}
+        />
+        <MetricTile
+          label="Reputation"
+          value="82"
+          detail="Placeholder until reputation endpoint is wired"
+          icon={<Star size={16} className="text-yellow-300" />}
+        />
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[1.35fr_0.85fr]">
+        <div className="panel p-6">
+          <div className="mb-5 flex items-end justify-between gap-3">
+            <div>
+              <p className="eyebrow mb-2">Work Queue</p>
+              <h2 className="text-xl font-semibold text-white">Current assignments</h2>
+            </div>
+            <p className="text-xs text-gray-500">Updated every 10 seconds</p>
+          </div>
+
+          {upcomingTasks.length === 0 ? (
+            <div className="rounded-[1.5rem] border border-dashed border-white/10 bg-black/10 px-6 py-10 text-center">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand/10 text-brand">
+                <Sparkles size={18} />
+              </div>
+              <p className="text-sm font-medium text-white">Keine aktiven Tasks</p>
+              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-500">
+                Der Agent ist bereit. Sobald der Registry-Client Aufgaben zuweist, erscheinen sie hier mit Status,
+                Zeitstempel und Reward.
+              </p>
             </div>
           ) : (
-            <div className="space-y-2">
-              {activeTasks.map(task => (
-                <div key={task.taskId} className="bg-white/4 rounded-xl border border-white/5 p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-mono bg-brand/20 text-brand px-2 py-0.5 rounded-full">
-                          {task.capability}
-                        </span>
-                        <span className={`text-xs font-medium ${statusColor(task.status)}`}>
-                          {task.status.replace("_", " ")}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-300 truncate">{task.prompt}</p>
-                      <p className="text-xs text-gray-500 mt-1">{formatRelativeTime(task.updatedAt)}</p>
+            <div className="space-y-3">
+              {upcomingTasks.map((task) => (
+                <article key={task.taskId} className="rounded-[1.5rem] border border-white/8 bg-black/10 p-4">
+                  <div className="mb-2 flex items-start justify-between gap-4">
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                      <span className="rounded-full border border-brand/30 bg-brand/10 px-2.5 py-1 text-[11px] font-medium text-brand">
+                        {task.capability}
+                      </span>
+                      <span className={`text-xs font-medium ${statusColor(task.status)}`}>
+                        {task.status.replace("_", " ")}
+                      </span>
                     </div>
-                    <div className="flex-shrink-0 text-right">
-                      <p className="text-sm font-mono text-brand">+{task.rewardCbt} CBT</p>
-                    </div>
+                    <span className="text-sm font-medium text-brand">{formatCBT(task.rewardCbt)}</span>
                   </div>
-                </div>
+                  <p className="line-clamp-2 text-sm leading-6 text-gray-200">{task.prompt}</p>
+                  <p className="mt-3 text-xs text-gray-500">{formatRelativeTime(task.updatedAt)}</p>
+                </article>
               ))}
             </div>
           )}
         </div>
 
-        {/* CBT Balance */}
-        <div className="bg-white/4 rounded-xl border border-white/5 p-5">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-sm text-gray-400">CBT Balance</span>
-            <span className="text-xs text-gray-500">Total earned: {formatCBT(wallet.earnedTotal)}</span>
+        <div className="space-y-4">
+          <div className="panel p-6">
+            <p className="eyebrow mb-2">Node Status</p>
+            <h2 className="text-xl font-semibold text-white">Local runtime</h2>
+            <dl className="mt-5 space-y-4 text-sm">
+              <StatusRow label="Registry" value={agentConfig?.registryUrl ?? "https://registry.colabbot.com"} />
+              <StatusRow label="Model" value={agentConfig?.llmModel ?? "llama3"} />
+              <StatusRow label="Capabilities" value={`${agentConfig?.capabilities.length ?? 0} enabled`} />
+              <StatusRow label="Daemon" value={agentStatus === "offline" ? "Starting automatically" : "Healthy"} />
+            </dl>
           </div>
-          <p className="text-3xl font-semibold font-mono text-brand">{formatCBT(wallet.balance)}</p>
+
+          <div className="panel p-6">
+            <p className="eyebrow mb-2">Focus</p>
+            <h2 className="text-xl font-semibold text-white">Immediate next step</h2>
+            <p className="mt-4 text-sm leading-6 text-gray-500">
+              Die Agent-Ansicht ist jetzt bewusst auf den Worker-Flow fokussiert. Die frueheren Task-Marketplace-Links
+              sind aus der Navigation entfernt, bis diese Pfade wirklich existieren und benutzbar sind.
+            </p>
+          </div>
         </div>
-      </main>
+      </section>
+    </div>
+  );
+}
+
+function MetricTile({
+  label,
+  value,
+  detail,
+  icon,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <div className="stat-tile">
+      <div className="mb-4 flex items-center justify-between">
+        <p className="eyebrow">{label}</p>
+        {icon}
+      </div>
+      <p className="text-2xl font-semibold text-white">{value}</p>
+      <p className="mt-2 text-sm leading-6 text-gray-500">{detail}</p>
+    </div>
+  );
+}
+
+function MiniMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/8 bg-white/4 px-4 py-3">
+      <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500">{label}</p>
+      <p className="mt-1 text-lg font-semibold text-white">{value}</p>
+    </div>
+  );
+}
+
+function StatusRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 border-b border-white/6 pb-3 last:border-b-0 last:pb-0">
+      <dt className="text-gray-500">{label}</dt>
+      <dd className="max-w-[60%] truncate text-right font-medium text-white">{value}</dd>
     </div>
   );
 }
